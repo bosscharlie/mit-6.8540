@@ -21,10 +21,10 @@ type KeyValue struct {
 	Value string
 }
 
-// for sorting by key.
+// for sorting by bucket.
 type ByHash []KeyValue
 
-// for sorting by key.
+// for sorting by bucket.
 func (a ByHash) Len() int           { return len(a) }
 func (a ByHash) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 // sort by bucket
@@ -54,17 +54,10 @@ func ihash(key string) int {
 //
 func Worker(mapf func(string, string) []KeyValue,
 	reducef func(string, []string) string) {
-
-	// Your worker implementation here.
-
-	// uncomment to send the Example RPC to the coordinator.
-	// CallExample()
-	// log.Printf("Worker launch success.\n")
-	// pass the input, and transfer input to mapf ans reducef
 	for {
 		reqsucc, jobType, filename, jobId, mapNum:= CallForJob()
 		if !reqsucc {
-			// log.Printf("Apply for job request failed!\n")
+			// log.Printf("Apply for job request failed, coordinator exit!\n")
 			return
 		}
 		// log.Printf("Got %v job %d with file %v.\n", jobType, jobId, filename)
@@ -73,23 +66,11 @@ func Worker(mapf func(string, string) []KeyValue,
 			if err!=nil{
 				log.Fatalf("Map task %v for %v failed!\n", jobId, filename)
 			}
-			// finished := JobCompleteNotice(jobId,jobType)
-			// if finished {
-			// 	log.Printf("Job %d with type %v excuted successfully.\n", jobId, jobType)
-			// } else {
-			// 	log.Printf("Job %d with type %v excuted failed.\n", jobId, jobType)
-			// }
 		} else if jobType == "reduce"{
 			err := ReduceJob(reducef, jobId, mapNum)
 			if err != nil{
 				log.Fatalf("Reduce task %v failed!\n", jobId)
 			}
-			// finished := JobCompleteNotice(jobId,jobType)
-			// if finished {
-			// 	log.Printf("Job %d with type %v excuted successfully.\n", jobId, jobType)
-			// } else {
-			// 	log.Printf("Job %d with type %v excuted failed.\n", jobId, jobType)
-			// }
 		} else if jobType == "none"{
 			// log.Printf("No task at current time.\n")
 			time.Sleep(time.Second)
@@ -121,7 +102,7 @@ func MapJob (mapf func(string, string) []KeyValue, filename string, taskid int) 
 		for j<len(intermediate) && ihash(intermediate[j].Key)%NReduce==ihash(intermediate[i].Key)%NReduce {
 			j++
 		}
-		// interfname := "../mr-tmp-file/mr_intermediate_"+strconv.Itoa(taskid)+"_"+strconv.Itoa(ihash(intermediate[i].Key)%NReduce)
+		// Create temp file during a job
 		interfname := "mr-intermediate-"+strconv.Itoa(taskid)+"-"+strconv.Itoa(ihash(intermediate[i].Key)%NReduce)+"-tmp"
 		filenames = append(filenames,interfname)
 		ofile, err := os.OpenFile(interfname, os.O_CREATE|os.O_WRONLY|os.O_TRUNC|os.O_APPEND, os.ModePerm)
@@ -134,7 +115,6 @@ func MapJob (mapf func(string, string) []KeyValue, filename string, taskid int) 
 			err := enc.Encode(&intermediate[k])
 			if err!=nil {
 				log.Fatalf("json format writing failed with err %v",err)
-				// fmt.Println(err)
 			}
 		}
 		ofile.Close()
@@ -142,6 +122,7 @@ func MapJob (mapf func(string, string) []KeyValue, filename string, taskid int) 
 	}
 	finished := JobCompleteNotice(taskid,"map")
 	if finished {
+		// The job is completely finished, rename temp files, prevent crash
 		for _, tmpname := range(filenames) {
 			err := os.Rename(tmpname,strings.TrimSuffix(tmpname,"-tmp"))
 			if err!=nil{
@@ -164,7 +145,6 @@ func ReduceJob(reducef func(string, []string) string, reduceId int, mapNum int) 
 	intermediate := []KeyValue{}
 	i := 0
 	for i<mapNum {
-		// iname := "../mr-tmp-file/mr_intermediate_"+strconv.Itoa(i)+"_"+strconv.Itoa(reduceId)
 		iname := "mr-intermediate-"+strconv.Itoa(i)+"-"+strconv.Itoa(reduceId)
 		ifile,err := os.OpenFile(iname, os.O_CREATE|os.O_RDONLY|os.O_APPEND, os.ModePerm)
 		if err != nil{
@@ -183,7 +163,6 @@ func ReduceJob(reducef func(string, []string) string, reduceId int, mapNum int) 
 	}
 	sort.Sort(ByKey(intermediate))
 	oname := "mr-out-"+strconv.Itoa(reduceId)+"tmp"
-	// ofile, _ := os.Create(oname)
 	ofile, _ := os.OpenFile(oname,os.O_CREATE|os.O_WRONLY|os.O_TRUNC|os.O_APPEND, os.ModePerm)
 	i = 0
 	for i < len(intermediate) {
@@ -216,8 +195,7 @@ func ReduceJob(reducef func(string, []string) string, reduceId int, mapNum int) 
 }
 
 func CallForJob() (bool,string,string,int,int) {
-	args := Args{}
-	// build args
+	args := JobRequestArgs{}
 	reply := JobAssignReply{}
 	ok := call("Coordinator.JobRequest", &args, &reply)
 	if ok {
@@ -265,33 +243,4 @@ func call(rpcname string, args interface{}, reply interface{}) bool {
 
 	fmt.Println(err)
 	return false
-}
-
-//
-// example function to show how to make an RPC call to the coordinator.
-//
-// the RPC argument and reply types are defined in rpc.go.
-//
-func CallExample() {
-
-	// declare an argument structure.
-	args := ExampleArgs{}
-
-	// fill in the argument(s).
-	args.X = 99
-
-	// declare a reply structure.
-	reply := ExampleReply{}
-
-	// send the RPC request, wait for the reply.
-	// the "Coordinator.Example" tells the
-	// receiving server that we'd like to call
-	// the Example() method of struct Coordinator.
-	ok := call("Coordinator.Example", &args, &reply)
-	if ok {
-		// reply.Y should be 100.
-		fmt.Printf("reply.Y %v\n", reply.Y)
-	} else {
-		fmt.Printf("call failed!\n")
-	}
 }

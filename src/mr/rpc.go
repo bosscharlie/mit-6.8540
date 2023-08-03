@@ -14,18 +14,6 @@ import "strconv"
 // and reply for an RPC.
 //
 
-type ExampleArgs struct {
-	X int
-}
-
-type ExampleReply struct {
-	Y int
-}
-
-type Args struct{
-
-}
-
 type JobRequestArgs struct {
 
 }

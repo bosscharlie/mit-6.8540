@@ -10,45 +10,33 @@ import "net/http"
 
 type Status int
 
-const(
-	IDLE Status = 0
-	INPROGRESS Status =1
-	COMPLETED Status =2
-)
-
 type Job struct {
 	filename string
 	id int
 	jobType string
 	startTime time.Time
-	// status Status
 }
 
 type Coordinator struct {
-	// Your definitions here.
 	mapNum int
 	reduceNum int
 	phase string
 	MapJobs []Job
 	ReduceJobs []Job
-	// InProgressJobs []Job
 	InProgressJobs map[int]Job
 	CompletedJobs []Job
 	TimeChecker time.Ticker
 	MapAssignChannel chan Job
 	JobDoneChannel chan int
-	// TimeCheckChannel chan int
 	TimeoutChecker *time.Ticker
 }
 
+// Use channel to operate coordinator's shared data insted of mutex
 func (c* Coordinator) ChannelOp(){
 	for {
 		// log.Printf("Map: %v, Reduce: %v, Idle: %v, Done: %v\n",len(c.MapJobs), len(c.ReduceJobs), len(c.InProgressJobs), len(c.CompletedJobs))
 		select {
 			case <-c.MapAssignChannel:
-				// log.Printf("Receive a job request.\n")
-				
-				// if len(c.MapJobs)!=0{
 				if c.phase=="map" && len(c.MapJobs)!=0 {
 					// Assign a map job
 					jobTodo := c.MapJobs[0]
@@ -57,7 +45,6 @@ func (c* Coordinator) ChannelOp(){
 					jobTodo.startTime = time.Now()
 					c.InProgressJobs[jobTodo.id]=jobTodo
 					c.MapAssignChannel <- jobTodo
-				// }else if len(c.MapJobs)==0 && len(c.ReduceJobs)!=0{
 				}else if c.phase=="reduce" && len(c.ReduceJobs)!=0 {
 					// Assign a reduce job
 					jobTodo := c.ReduceJobs[0]
@@ -119,11 +106,7 @@ func (c *Coordinator) JobRequest(args *JobRequestArgs, reply *JobAssignReply) er
 func (c * Coordinator) JobCompleteNotice(args *CompleteNoticeArgs, reply *CompleteNoticeReply) error{
 	c.JobDoneChannel <- args.JobId
 	code := <- c.JobDoneChannel
-	if code==0 {
-		reply.Succeed=true
-	}else {
-		reply.Succeed=false
-	}
+	reply.Succeed = code==0
 	return nil
 }
 
@@ -133,7 +116,6 @@ func (c * Coordinator) JobCompleteNotice(args *CompleteNoticeArgs, reply *Comple
 func (c *Coordinator) server() {
 	rpc.Register(c)
 	rpc.HandleHTTP()
-	//l, e := net.Listen("tcp", ":1234")
 	sockname := coordinatorSock()
 	os.Remove(sockname)
 	l, e := net.Listen("unix", sockname)
@@ -149,12 +131,10 @@ func (c *Coordinator) server() {
 //
 func (c *Coordinator) Done() bool {
 	ret := false
-
-	// Your code here.
+	// Mapreduce job completely finished
 	if len(c.MapJobs) ==0 && len(c.ReduceJobs)==0 && len(c.InProgressJobs)==0{
 		ret = true
 	}
-
 	return ret
 }
 
@@ -165,9 +145,6 @@ func (c *Coordinator) Done() bool {
 //
 func MakeCoordinator(files []string, nReduce int) *Coordinator {
 	c := Coordinator{}
-	// log.Println("Coordinator initial begin...")
-	// TimeChecker = time.NewTicker(time.second)
-	// Your code here.
 	if len(os.Args) < 2 {
 		fmt.Fprintf(os.Stderr, "Usage: inputfiles...\n")
 		os.Exit(1)
