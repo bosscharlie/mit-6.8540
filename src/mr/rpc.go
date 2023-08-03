@@ -22,6 +22,31 @@ type ExampleReply struct {
 	Y int
 }
 
+type Args struct{
+
+}
+
+type JobRequestArgs struct {
+
+}
+
+type JobAssignReply struct {
+	JobType string
+	FileName string
+	TaskId int
+	MapNum int
+	NReduce int
+}
+
+type CompleteNoticeArgs struct {
+	JobId int
+	JobType string
+}
+
+type CompleteNoticeReply struct {
+	Succeed bool
+}
+
 // Add your RPC definitions here.
 
 
