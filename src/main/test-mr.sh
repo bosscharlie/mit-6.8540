@@ -100,6 +100,7 @@ wait $pid
 
 # since workers are required to exit when a job is completely finished,
 # and not before, that means the job has finished.
+
 sort mr-out* | grep . > mr-wc-all
 if cmp mr-wc-all mr-correct-wc.txt
 then
@@ -113,7 +114,7 @@ fi
 # wait for remaining workers and coordinator to exit.
 wait
 
-#########################################################
+########################################################
 # now indexer
 rm -f mr-*
 
@@ -174,7 +175,7 @@ fi
 wait
 
 
-#########################################################
+########################################################
 echo '***' Starting reduce parallelism test.
 
 rm -f mr-*
@@ -197,7 +198,7 @@ fi
 
 wait
 
-#########################################################
+########################################################
 echo '***' Starting job count test.
 
 rm -f mr-*
@@ -329,7 +330,7 @@ else
   failed_any=1
 fi
 
-#########################################################
+########################################################
 if [ $failed_any -eq 0 ]; then
     echo '***' PASSED ALL TESTS
 else
