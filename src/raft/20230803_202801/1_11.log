@@ -1,0 +1,6 @@
+Test (2C): basic persistence ...
+--- FAIL: TestPersist12C (10.00s)
+    config.go:601: one(11) failed to reach agreement
+FAIL
+exit status 1
+FAIL	6.5840/raft	10.124s
