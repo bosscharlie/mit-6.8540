@@ -26,20 +26,24 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply * AppendEntriesRepl
 		reply.Success = false
 		return
 	}
-	
-	if args.PrevLogIndex != rf.lastLogIndex || args.PrevLogTerm != rf.lastLogTerm {
-		reply.Success = false
-		return
-	}
 
 	// if the RPC is not heartbeat, do log replication
 	if len(args.Entries) > 0 {
-
+		// TODO: Reply false if log doesn’t contain an entry at prevLogIndex whose term matches prevLogTerm
+		if rf.log[args.PrevLogIndex].Term != args.PrevLogTerm {
+			reply.Success = false
+			return
+		}
+		// TODO: append new entry
+		// If an existing entry conflicts with a new one (same index but different terms), 
+		// delete the existing entry and all thatfollow it
 	}
 
+	// convert to follower
 	rf.currentTerm = args.Term
 	rf.heartbeatReceived = true
 	rf.leaderId = args.LeaderId
+	rf.votedFor = args.LeaderId
 	rf.isLeader = false
 	if args.LeaderCommit > rf.commitIndex {
 		rf.commitIndex = Min(args.LeaderCommit, rf.lastLogIndex)

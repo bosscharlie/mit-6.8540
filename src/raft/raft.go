@@ -169,7 +169,6 @@ func Make(peers []*labrpc.ClientEnd, me int,
 
 	// Your initialization code here (2A, 2B, 2C).
 
-	// lab 2A
 	rf.leaderId = -1
 	rf.currentTerm = 0
 	rf.votedFor = -1 // vote for none

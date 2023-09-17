@@ -18,7 +18,6 @@ type RequestVoteArgs struct {
 type RequestVoteReply struct {
 	// Your data here (2A).
 	// return from follower to candidate
-	// lab 2A
 	Term 		int // current Term, for candidate to update itself, if there is a latest term, candidate update its term
 	VoteGranted bool // true means candidate received vote
 }
@@ -27,7 +26,6 @@ type RequestVoteReply struct {
 func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 	// Your code here (2A, 2B).
 
-	// lab 2A
 	// for all servers
 	rf.mu.Lock()
 	Debug(dVote, "S%d received requestvote from S%d in term%d",rf.me,args.CandidateId,args.Term)
@@ -39,12 +37,8 @@ func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 		return
 	} else if args.Term > rf.currentTerm {
 		rf.currentTerm = args.Term
-		rf.votedFor = args.CandidateId
-		rf.isLeader = false
-		reply.Term = rf.currentTerm
-		reply.VoteGranted = true
-		Debug(dVote, "S%d voted for S%d in term%d",rf.me,args.CandidateId,rf.currentTerm)
-		return
+		rf.isLeader = false // for stale leader who reboot just now
+		rf.votedFor = -1
 	}
 
 	// for follower
@@ -52,6 +46,7 @@ func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 		if args.LastLogTerm >= rf.lastLogTerm && args.LastLogIndex >= rf.lastLogIndex {
 			rf.votedFor = args.CandidateId
 			rf.currentTerm = args.Term
+			rf.heartbeatReceived = true // granting vote to candiate, reset election timeout
 			reply.Term = rf.currentTerm
 			reply.VoteGranted = true
 			Debug(dVote, "S%d voted for S%d in term%d",rf.me,args.CandidateId,rf.currentTerm)
@@ -79,8 +74,11 @@ func (rf *Raft) sendRequestVote(server int) bool {
 				go rf.heartbeat()
 			}
 		} else if reply.Term > rf.currentTerm {
+			// find someone in new term, transfer to a follower
 			rf.currentTerm = reply.Term
 			rf.votedFor = -1
+			rf.voteNum = 0
+			rf.isLeader = false 
 		}
 		rf.mu.Unlock()
 	}
@@ -89,10 +87,10 @@ func (rf *Raft) sendRequestVote(server int) bool {
 
 func (rf *Raft) startNewElection() {
 	rf.mu.Lock()
+	rf.currentTerm++
 	rf.electionTimeout = 150 + (rand.Int63() % 150)
 	rf.votedFor = rf.me
 	rf.voteNum = 1
-	rf.currentTerm++
 	Debug(dTerm, "S%d StartNewElection in term %d", rf.me, rf.currentTerm)
 	rf.mu.Unlock()
 	for id, _  := range(rf.peers) {
