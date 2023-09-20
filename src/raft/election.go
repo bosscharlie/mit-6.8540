@@ -28,7 +28,7 @@ func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 
 	// for all servers
 	rf.mu.Lock()
-	Debug(dVote, "S%d received requestvote from S%d in term%d",rf.me,args.CandidateId,args.Term)
+	// Debug(dVote, "S%d received requestvote from S%d in term%d",rf.me,args.CandidateId,args.Term)
 	defer rf.mu.Unlock()
 	// reject the stale vote request
 	if args.Term < rf.currentTerm {
@@ -49,7 +49,7 @@ func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 			rf.heartbeatReceived = true // granting vote to candiate, reset election timeout
 			reply.Term = rf.currentTerm
 			reply.VoteGranted = true
-			Debug(dVote, "S%d voted for S%d in term%d",rf.me,args.CandidateId,rf.currentTerm)
+			// Debug(dVote, "S%d voted for S%d in term%d",rf.me,args.CandidateId,rf.currentTerm)
 		}
 	} else {
 		reply.Term = rf.currentTerm
@@ -68,7 +68,7 @@ func (rf *Raft) sendRequestVote(server int) bool {
 		if reply.VoteGranted && reply.Term == rf.currentTerm {
 			rf.voteNum++
 			// win the election
-			if rf.voteNum*2 > len(rf.peers) {
+			if !rf.isLeader && rf.voteNum*2 > len(rf.peers) {
 				Debug(dLeader,"S%d win the election in term%d",rf.me,rf.currentTerm)
 				rf.isLeader = true
 				go rf.heartbeat()
@@ -91,7 +91,7 @@ func (rf *Raft) startNewElection() {
 	rf.electionTimeout = 150 + (rand.Int63() % 150)
 	rf.votedFor = rf.me
 	rf.voteNum = 1
-	Debug(dTerm, "S%d StartNewElection in term %d", rf.me, rf.currentTerm)
+	// Debug(dTerm, "S%d StartNewElection in term %d", rf.me, rf.currentTerm)
 	rf.mu.Unlock()
 	for id, _  := range(rf.peers) {
 		if id!=rf.me {
