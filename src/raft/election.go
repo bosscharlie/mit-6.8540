@@ -43,7 +43,7 @@ func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 
 	// for follower
 	if rf.votedFor == -1 || rf.votedFor == args.CandidateId{
-		if args.LastLogTerm >= rf.lastLogTerm && args.LastLogIndex >= rf.lastLogIndex {
+		if args.LastLogTerm >= rf.log[len(rf.log)-1].Term && args.LastLogIndex >= len(rf.log)-1 {
 			rf.votedFor = args.CandidateId
 			rf.currentTerm = args.Term
 			rf.heartbeatReceived = true // granting vote to candiate, reset election timeout
@@ -60,7 +60,7 @@ func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 }
 
 func (rf *Raft) sendRequestVote(server int) bool {
-	args := RequestVoteArgs{rf.currentTerm, rf.me, rf.lastLogTerm, rf.lastLogIndex}
+	args := RequestVoteArgs{rf.currentTerm, rf.me, len(rf.log)-1, rf.log[len(rf.log)-1].Term}
 	reply := RequestVoteReply{}
 	ok := rf.peers[server].Call("Raft.RequestVote", &args, &reply)
 	if ok {
@@ -69,7 +69,7 @@ func (rf *Raft) sendRequestVote(server int) bool {
 			rf.voteNum++
 			// win the election
 			if !rf.isLeader && rf.voteNum*2 > len(rf.peers) {
-				// Debug(dLeader,"S%d win the election in term%d",rf.me,rf.currentTerm)
+				Debug(dLeader,"S%d win the election in term%d",rf.me,rf.currentTerm)
 				rf.isLeader = true
 				go rf.heartbeat()
 			}

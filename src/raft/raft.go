@@ -54,8 +54,8 @@ type Raft struct {
 	voteNum     int  // vote from other peers
 	isLeader	bool // this raft server is a leader or not
 
-	lastLogTerm  		int 
-	lastLogIndex 		int
+	// lastLogTerm  		int 
+	// lastLogIndex 		int
 	commitIndex 		int  // index of last committed entry
     appliedIndex        int  // index of latest applied entry
 	heartbeatReceived 	bool // is there any heartbeat received from peers, use to check if there need to start a leader election
@@ -153,7 +153,7 @@ func (rf *Raft) Start(command interface{}) (int, int, bool) {
     entry.Term = rf.currentTerm
     entry.Command = command
     entry.CommandIndex = len(rf.log)
-    Debug(dLog, "S%d start with command %d in term %d",rf.me, entry.CommandIndex, entry.Term)
+    // Debug(dLog, "S%d start with command %d in term %d",rf.me, entry.CommandIndex, entry.Term)
     rf.log = append(rf.log,entry)
     rf.logAcceptCnt = append(rf.logAcceptCnt,1)
 
@@ -199,17 +199,18 @@ func Make(peers []*labrpc.ClientEnd, me int,
 	rf.currentTerm = 0
 	rf.votedFor = -1 // vote for none
 	rf.isLeader = false
-	rf.lastLogTerm = -1
-	rf.lastLogIndex = -1
-	rf.commitIndex = -1
+	// rf.lastLogTerm = -1
+	// rf.lastLogIndex = -1
+	rf.commitIndex = 0
 	rf.heartbeatReceived = false
-	rf.log = []LogEntry{}
-    rf.logAcceptCnt = []int{}
+    // init with a dummy entry
+	rf.log = []LogEntry{LogEntry{-1,-1,-1}}
+    rf.logAcceptCnt = []int{0}
 	rf.voteNum = 0
-
+    // init next index
     rf.nextIndex = make([]int, len(rf.peers))
     for i:=0; i<len(rf.nextIndex); i++ {
-        rf.nextIndex[i]=-1;
+        rf.nextIndex[i]=1;
     }
 
 	rf.heartbeatDuration = 10

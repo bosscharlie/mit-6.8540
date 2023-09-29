@@ -31,7 +31,7 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply * AppendEntriesRepl
 	if len(args.Entries) > 0 {
 		// TODO: Reply false if log doesn’t contain an entry at prevLogIndex whose term matches prevLogTerm
         // args.PrevLogIndex==0 means accept the fisrt entry of leader
-		if args.PrevLogIndex>=0 && args.PrevLogIndex<len(rf.log) && rf.log[args.PrevLogIndex].Term != args.PrevLogTerm {
+		if args.PrevLogIndex<len(rf.log) && rf.log[args.PrevLogIndex].Term != args.PrevLogTerm {
 			reply.Success = false
 			return
 		}
@@ -43,8 +43,8 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply * AppendEntriesRepl
         }
         // add new entry to local log
         rf.log = append(rf.log, args.Entries...)
-        rf.lastLogTerm = rf.log[len(rf.log)-1].Term
-        rf.lastLogIndex = len(rf.log)-1
+        // rf.lastLogTerm = rf.log[len(rf.log)-1].Term
+        // rf.lastLogIndex = len(rf.log)-1
 	}
 
 	// convert to follower
@@ -54,7 +54,7 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply * AppendEntriesRepl
 	rf.votedFor = args.LeaderId
 	rf.isLeader = false
 	if args.LeaderCommit > rf.commitIndex {
-		rf.commitIndex = Min(args.LeaderCommit, rf.lastLogIndex)
+		rf.commitIndex = Min(args.LeaderCommit, len(rf.log)-1)
         // wake up the commit apply go routine
 	}
 
@@ -66,17 +66,23 @@ func (rf *Raft) sendAppendEntries(server int) bool {
 	args := AppendEntriesArgs{}
 	args.Term = rf.currentTerm
 	args.LeaderId = rf.me
-	args.PrevLogIndex = -1
-	args.PrevLogTerm = -1
-	args.Entries = rf.log
+    prevIndex := rf.nextIndex[server]-1
+	args.PrevLogIndex = prevIndex
+	args.PrevLogTerm = rf.log[prevIndex].Term
+    // args.PrevLogTerm = -1
+	args.Entries = rf.log[args.PrevLogIndex+1:len(rf.log)]
 	args.LeaderCommit = rf.commitIndex
 	reply := AppendEntriesReply{}
 	ok := rf.peers[server].Call("Raft.AppendEntries", &args, &reply)
-	if ok {
+	if ok && rf.isLeader {
+        // meet a new server, transfer to follower
 		if reply.Term > rf.currentTerm {
+            rf.mu.Lock()
 			rf.currentTerm = reply.Term
 			rf.isLeader = false
 			rf.votedFor = -1
+            rf.mu.Unlock()
+            return ok
 		}
         // if success, count and commit
         if reply.Success {
@@ -89,7 +95,9 @@ func (rf *Raft) sendAppendEntries(server int) bool {
             }
         } else{
             // if !success, decrease lastIndex
+            rf.mu.Lock()
             rf.nextIndex[server]--
+            rf.mu.Unlock()
         }
 	}
 	return ok
