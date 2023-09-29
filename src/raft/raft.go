@@ -5,7 +5,7 @@ import (
 	"math/rand"
 	"sync"
 	"sync/atomic"
-	// "time"
+	"time"
 
 	//	"6.5840/labgob"
 	"6.5840/labrpc"
@@ -32,7 +32,6 @@ type ApplyMsg struct {
 
 type LogEntry struct {
 	Term 			int
-	CommandValid 	bool
 	Command 		interface{}
 	CommandIndex	int
 }
@@ -58,8 +57,14 @@ type Raft struct {
 	lastLogTerm  		int 
 	lastLogIndex 		int
 	commitIndex 		int  // index of last committed entry
+    appliedIndex        int  // index of latest applied entry
 	heartbeatReceived 	bool // is there any heartbeat received from peers, use to check if there need to start a leader election
 	log					[]LogEntry
+    logAcceptCnt        []int
+
+    applyCh     chan ApplyMsg
+
+    nextIndex   []int // record nextIndex for each other server
 
 	// config
 	heartbeatDuration int64 // heartbeat timeout config
@@ -140,14 +145,19 @@ func (rf *Raft) Snapshot(index int, snapshot []byte) {
 // term. the third return value is true if this server believes it is
 // the leader.
 func (rf *Raft) Start(command interface{}) (int, int, bool) {
-	index := -1
-	term := -1
-	isLeader := true
-
 	// Your code here (2B).
+    if !rf.isLeader {
+        return -1, -1, false
+    }
+    entry := LogEntry{}
+    entry.Term = rf.currentTerm
+    entry.Command = command
+    entry.CommandIndex = len(rf.log)
+    Debug(dLog, "S%d start with command %d in term %d",rf.me, entry.CommandIndex, entry.Term)
+    rf.log = append(rf.log,entry)
+    rf.logAcceptCnt = append(rf.logAcceptCnt,1)
 
-
-	return index, term, isLeader
+	return entry.CommandIndex, entry.Term, true
 }
 
 func (rf *Raft) Kill() {
@@ -158,6 +168,22 @@ func (rf *Raft) Kill() {
 func (rf *Raft) killed() bool {
 	z := atomic.LoadInt32(&rf.dead)
 	return z == 1
+}
+
+func (rf *Raft) applyMsgChk() {
+    for !rf.killed() {
+        if rf.commitIndex > rf.appliedIndex {
+            for i:=rf.appliedIndex+1; i<=rf.commitIndex; i++ {
+                msg := ApplyMsg{}
+                msg.CommandValid = true
+                msg.Command = rf.log[i].Command
+                msg.CommandIndex = rf.log[i].CommandIndex
+                rf.applyCh <- msg
+                rf.appliedIndex++
+            }
+        }
+        time.Sleep(10 * time.Millisecond)
+    }
 }
 
 func Make(peers []*labrpc.ClientEnd, me int,
@@ -178,7 +204,13 @@ func Make(peers []*labrpc.ClientEnd, me int,
 	rf.commitIndex = -1
 	rf.heartbeatReceived = false
 	rf.log = []LogEntry{}
+    rf.logAcceptCnt = []int{}
 	rf.voteNum = 0
+
+    rf.nextIndex = make([]int, len(rf.peers))
+    for i:=0; i<len(rf.nextIndex); i++ {
+        rf.nextIndex[i]=-1;
+    }
 
 	rf.heartbeatDuration = 10
 	rf.electionTimeout = 300 + (rand.Int63() % 150)

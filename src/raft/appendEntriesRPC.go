@@ -30,13 +30,21 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply * AppendEntriesRepl
 	// if the RPC is not heartbeat, do log replication
 	if len(args.Entries) > 0 {
 		// TODO: Reply false if log doesn’t contain an entry at prevLogIndex whose term matches prevLogTerm
-		if rf.log[args.PrevLogIndex].Term != args.PrevLogTerm {
+        // args.PrevLogIndex==0 means accept the fisrt entry of leader
+		if args.PrevLogIndex>=0 && args.PrevLogIndex<len(rf.log) && rf.log[args.PrevLogIndex].Term != args.PrevLogTerm {
 			reply.Success = false
 			return
 		}
 		// TODO: append new entry
 		// If an existing entry conflicts with a new one (same index but different terms), 
 		// delete the existing entry and all thatfollow it
+        if args.PrevLogIndex >= 0 {
+            rf.log = rf.log[:args.PrevLogIndex]
+        }
+        // add new entry to local log
+        rf.log = append(rf.log, args.Entries...)
+        rf.lastLogTerm = rf.log[len(rf.log)-1].Term
+        rf.lastLogIndex = len(rf.log)-1
 	}
 
 	// convert to follower
@@ -47,6 +55,7 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply * AppendEntriesRepl
 	rf.isLeader = false
 	if args.LeaderCommit > rf.commitIndex {
 		rf.commitIndex = Min(args.LeaderCommit, rf.lastLogIndex)
+        // wake up the commit apply go routine
 	}
 
 	reply.Term = rf.currentTerm
@@ -69,7 +78,19 @@ func (rf *Raft) sendAppendEntries(server int) bool {
 			rf.isLeader = false
 			rf.votedFor = -1
 		}
-		// if !success, decrease lastIndex
+        // if success, count and commit
+        if reply.Success {
+            logIndex := args.PrevLogIndex+1
+            if logIndex<len(rf.log) && rf.log[logIndex].Term == rf.currentTerm {
+                rf.logAcceptCnt[logIndex]++
+                if rf.logAcceptCnt[logIndex]*2 > len(rf.peers) {
+                    rf.commitIndex = logIndex
+                }
+            }
+        } else{
+            // if !success, decrease lastIndex
+            rf.nextIndex[server]--
+        }
 	}
 	return ok
 }

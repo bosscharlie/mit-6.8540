@@ -69,7 +69,7 @@ func (rf *Raft) sendRequestVote(server int) bool {
 			rf.voteNum++
 			// win the election
 			if !rf.isLeader && rf.voteNum*2 > len(rf.peers) {
-				Debug(dLeader,"S%d win the election in term%d",rf.me,rf.currentTerm)
+				// Debug(dLeader,"S%d win the election in term%d",rf.me,rf.currentTerm)
 				rf.isLeader = true
 				go rf.heartbeat()
 			}
