@@ -43,7 +43,7 @@ func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 
 	// for follower
 	if rf.votedFor == -1 || rf.votedFor == args.CandidateId{
-		if args.LastLogTerm >= rf.log[len(rf.log)-1].Term && args.LastLogIndex >= len(rf.log)-1 {
+		if args.LastLogTerm > rf.log[len(rf.log)-1].Term || (args.LastLogTerm == rf.log[len(rf.log)-1].Term && args.LastLogIndex >= len(rf.log)-1) {
 			rf.votedFor = args.CandidateId
 			rf.currentTerm = args.Term
 			rf.heartbeatReceived = true // granting vote to candiate, reset election timeout
@@ -71,10 +71,15 @@ func (rf *Raft) sendRequestVote(server int) bool {
 			if !rf.isLeader && rf.voteNum*2 > len(rf.peers) {
 				Debug(dLeader,"S%d win the election in term%d",rf.me,rf.currentTerm)
 				rf.isLeader = true
+                // set nextindex to the index just after the last one in log
+                for i:=0; i<len(rf.nextIndex); i++ {
+                    rf.nextIndex[i] = len(rf.log)
+                }
 				go rf.heartbeat()
 			}
 		} else if reply.Term > rf.currentTerm {
 			// find someone in new term, transfer to a follower
+            Debug(dLeader, "S%d return to follower", rf.me)
 			rf.currentTerm = reply.Term
 			rf.votedFor = -1
 			rf.voteNum = 0
@@ -91,7 +96,7 @@ func (rf *Raft) startNewElection() {
 	rf.electionTimeout = 150 + (rand.Int63() % 150)
 	rf.votedFor = rf.me
 	rf.voteNum = 1
-	// Debug(dTerm, "S%d StartNewElection in term %d", rf.me, rf.currentTerm)
+	Debug(dTerm, "S%d StartNewElection in term %d", rf.me, rf.currentTerm)
 	rf.mu.Unlock()
 	for id, _  := range(rf.peers) {
 		if id!=rf.me {

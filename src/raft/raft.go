@@ -60,7 +60,8 @@ type Raft struct {
     appliedIndex        int  // index of latest applied entry
 	heartbeatReceived 	bool // is there any heartbeat received from peers, use to check if there need to start a leader election
 	log					[]LogEntry
-    logAcceptCnt        []int
+    // logAcceptCnt        []int
+    logAcceptCnt        map[int]int
 
     applyCh     chan ApplyMsg
 
@@ -153,9 +154,10 @@ func (rf *Raft) Start(command interface{}) (int, int, bool) {
     entry.Term = rf.currentTerm
     entry.Command = command
     entry.CommandIndex = len(rf.log)
-    // Debug(dLog, "S%d start with command %d in term %d",rf.me, entry.CommandIndex, entry.Term)
+    Debug(dLog, "S%d start with command %d in term %d", rf.me, entry.CommandIndex, entry.Term)
     rf.log = append(rf.log,entry)
-    rf.logAcceptCnt = append(rf.logAcceptCnt,1)
+    // rf.logAcceptCnt = append(rf.logAcceptCnt,1)
+    rf.logAcceptCnt[len(rf.log)-1]=1
 
 	return entry.CommandIndex, entry.Term, true
 }
@@ -170,15 +172,19 @@ func (rf *Raft) killed() bool {
 	return z == 1
 }
 
-func (rf *Raft) applyMsgChk() {
+func (rf *Raft) applyMsgChk(applyCh chan ApplyMsg) {
     for !rf.killed() {
+        // Debug(dInfo, "S%d appliedIndex%d, commitIndex%d, log len%d", rf.me, rf.appliedIndex, rf.commitIndex, len(rf.log))
         if rf.commitIndex > rf.appliedIndex {
+            // Debug(dInfo, "S%d appliedIndex%d, commitIndex%d, log len%d", rf.me, rf.appliedIndex, rf.commitIndex, len(rf.log))
             for i:=rf.appliedIndex+1; i<=rf.commitIndex; i++ {
                 msg := ApplyMsg{}
                 msg.CommandValid = true
                 msg.Command = rf.log[i].Command
                 msg.CommandIndex = rf.log[i].CommandIndex
-                rf.applyCh <- msg
+                // Debug(dLog, "S%d apply msg%d", rf.me, msg.CommandIndex)
+                applyCh <- msg
+                Debug(dLog, "S%d apply msg%d", rf.me, msg.CommandIndex)
                 rf.appliedIndex++
             }
         }
@@ -202,10 +208,12 @@ func Make(peers []*labrpc.ClientEnd, me int,
 	// rf.lastLogTerm = -1
 	// rf.lastLogIndex = -1
 	rf.commitIndex = 0
+    rf.appliedIndex = 0
 	rf.heartbeatReceived = false
     // init with a dummy entry
 	rf.log = []LogEntry{LogEntry{-1,-1,-1}}
-    rf.logAcceptCnt = []int{0}
+    // rf.logAcceptCnt = []int{0}
+    rf.logAcceptCnt = make(map[int]int)
 	rf.voteNum = 0
     // init next index
     rf.nextIndex = make([]int, len(rf.peers))
@@ -222,6 +230,7 @@ func Make(peers []*labrpc.ClientEnd, me int,
 	Debug(dInfo, "S%d start", rf.me)
 	// start ticker goroutine to start elections
 	go rf.ticker()
+    go rf.applyMsgChk(applyCh)
 
 	return rf
 }
