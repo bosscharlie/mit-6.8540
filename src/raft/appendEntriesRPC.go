@@ -77,8 +77,8 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply * AppendEntriesRepl
         }
         // add new entry to local log
         // Debug(dLog, "S%d log len%d update with args.Entries%d", rf.me, len(rf.log), len(args.Entries))
-        // rf.log = append(rf.log, args.Entries...)
-        rf.log = append(rf.log, args.Entries[0])
+        rf.log = append(rf.log, args.Entries...)
+        // rf.log = append(rf.log, args.Entries[0])
 	}
 
 	if args.LeaderCommit > rf.commitIndex {
@@ -113,8 +113,10 @@ func (rf *Raft) sendAppendEntries(server int) bool {
 	args.PrevLogTerm = rf.log[prevIndex].Term
 	// args.Entries = rf.log[args.PrevLogIndex+1:len(rf.log)]
     args.Entries = []LogEntry{}
+    nextToSend := len(rf.log)
     if args.PrevLogIndex+1 < len(rf.log) {
-        args.Entries = append(args.Entries, rf.log[args.PrevLogIndex+1])
+        // args.Entries = append(args.Entries, rf.log[args.PrevLogIndex+1])
+        args.Entries = rf.log[args.PrevLogIndex+1:len(rf.log)]
     }
 	args.LeaderCommit = rf.commitIndex
 	reply := AppendEntriesReply{}
@@ -136,8 +138,9 @@ func (rf *Raft) sendAppendEntries(server int) bool {
         if len(args.Entries) > 0 {
             if reply.Success {
                 rf.mu.Lock()
-                rf.nextIndex[server]++
-                logIndex := args.PrevLogIndex+1
+                rf.nextIndex[server]=nextToSend
+                // logIndex := args.PrevLogIndex+1
+                logIndex := nextToSend-1
                 if logIndex > rf.commitIndex && logIndex<len(rf.log) && rf.log[logIndex].Term == rf.currentTerm {
                     rf.logAcceptCnt[logIndex]++
                     // Debug(dSnap, "S%d receive accept from S%d", rf.me, server)
