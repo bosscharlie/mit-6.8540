@@ -147,6 +147,8 @@ func (rf *Raft) Snapshot(index int, snapshot []byte) {
 // the leader.
 func (rf *Raft) Start(command interface{}) (int, int, bool) {
 	// Your code here (2B).
+    rf.mu.Lock()
+    defer rf.mu.Unlock()
     if !rf.isLeader {
         return -1, -1, false
     }
@@ -154,7 +156,7 @@ func (rf *Raft) Start(command interface{}) (int, int, bool) {
     entry.Term = rf.currentTerm
     entry.Command = command
     entry.CommandIndex = len(rf.log)
-    Debug(dLog, "S%d start with command %d in term %d", rf.me, entry.CommandIndex, entry.Term)
+    Debug(dLog, "S%d start with command %d in term %d with num%d", rf.me, entry.CommandIndex, entry.Term, command)
     rf.log = append(rf.log,entry)
     // rf.logAcceptCnt = append(rf.logAcceptCnt,1)
     rf.logAcceptCnt[len(rf.log)-1]=1
@@ -184,7 +186,7 @@ func (rf *Raft) applyMsgChk(applyCh chan ApplyMsg) {
                 msg.CommandIndex = rf.log[i].CommandIndex
                 // Debug(dLog, "S%d apply msg%d", rf.me, msg.CommandIndex)
                 applyCh <- msg
-                Debug(dLog, "S%d apply msg%d", rf.me, msg.CommandIndex)
+                Debug(dTrace, "S%d apply msg%d with term%d as leader? %t", rf.me, msg.CommandIndex, rf.log[i].Term,rf.isLeader)
                 rf.appliedIndex++
             }
         }
@@ -221,8 +223,8 @@ func Make(peers []*labrpc.ClientEnd, me int,
         rf.nextIndex[i]=1;
     }
 
-	rf.heartbeatDuration = 10
-	rf.electionTimeout = 300 + (rand.Int63() % 150)
+	rf.heartbeatDuration = 100
+	rf.electionTimeout = 300 + (rand.Int63() % 160)
 
 
 	// initialize from state persisted before a crash
