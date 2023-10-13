@@ -18,18 +18,14 @@ type RequestVoteArgs struct {
 type RequestVoteReply struct {
 	// Your data here (2A).
 	// return from follower to candidate
-	Term 		int // current Term, for candidate to update itself, if there is a latest term, candidate update its term
+	Term 		int  // current Term, for candidate to update itself, if there is a latest term, candidate update its term
 	VoteGranted bool // true means candidate received vote
 }
 
 // RequestVote RPC handler.
 func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 	// Your code here (2A, 2B).
-
-	// for all servers
-    Debug(dVote, "S%d received requestvote from S%d in term%d unlocked",rf.me,args.CandidateId,args.Term)
 	rf.mu.Lock()
-    Debug(dVote, "S%d received requestvote from S%d in term%d locked",rf.me,args.CandidateId,args.Term)
 	defer rf.mu.Unlock()
 	// reject the stale vote request
 	if args.Term < rf.currentTerm {
@@ -44,7 +40,8 @@ func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 
 	// for follower
 	if rf.votedFor == -1 || rf.votedFor == args.CandidateId{
-		if args.LastLogTerm > rf.log[len(rf.log)-1].Term || (args.LastLogTerm == rf.log[len(rf.log)-1].Term && args.LastLogIndex >= len(rf.log)-1) {
+		if args.LastLogTerm > rf.log[len(rf.log)-1].Term || 
+            (args.LastLogTerm == rf.log[len(rf.log)-1].Term && args.LastLogIndex >= len(rf.log)-1) {
 			rf.votedFor = args.CandidateId
 			rf.currentTerm = args.Term
 			rf.heartbeatReceived = true // granting vote to candiate, reset election timeout
@@ -81,7 +78,6 @@ func (rf *Raft) sendRequestVote(server int) bool {
 			}
 		} else if reply.Term > rf.currentTerm {
 			// find someone in new term, transfer to a follower
-            Debug(dLeader, "S%d return to follower by S%d", rf.me, server)
 			rf.currentTerm = reply.Term
 			rf.votedFor = -1
 			rf.voteNum = 0
@@ -89,7 +85,7 @@ func (rf *Raft) sendRequestVote(server int) bool {
 		}
 		rf.mu.Unlock()
 	} else {
-        Debug(dWarn, "S%d rpc to S%d failed", rf.me, server)
+        // rpc failed operations
     }
 	return ok
 }

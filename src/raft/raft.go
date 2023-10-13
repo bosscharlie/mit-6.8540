@@ -53,19 +53,13 @@ type Raft struct {
 	votedFor 	int	 // candidateId that recerived vote in current term	
 	voteNum     int  // vote from other peers
 	isLeader	bool // this raft server is a leader or not
-
-	// lastLogTerm  		int 
-	// lastLogIndex 		int
+    
+    heartbeatReceived 	bool // is there any heartbeat received from peers, use to check if there need to start a leader election
 	commitIndex 		int  // index of last committed entry
     appliedIndex        int  // index of latest applied entry
-	heartbeatReceived 	bool // is there any heartbeat received from peers, use to check if there need to start a leader election
 	log					[]LogEntry
-    // logAcceptCnt        []int
     logAcceptCnt        map[int]int
-
-    applyCh     chan ApplyMsg
-
-    nextIndex   []int // record nextIndex for each other server
+    nextIndex           []int // record nextIndex for each other server
 
 	// config
 	heartbeatDuration int64 // heartbeat timeout config
@@ -75,7 +69,6 @@ type Raft struct {
 // return currentTerm and whether this server
 // believes it is the leader.
 func (rf *Raft) GetState() (int, bool) {
-
 	var term int
 	var isleader bool
 	// Your code here (2A).
@@ -152,15 +145,10 @@ func (rf *Raft) Start(command interface{}) (int, int, bool) {
     if !rf.isLeader {
         return -1, -1, false
     }
-    entry := LogEntry{}
-    entry.Term = rf.currentTerm
-    entry.Command = command
-    entry.CommandIndex = len(rf.log)
+    entry := LogEntry{ rf.currentTerm, command, len(rf.log)}
     Debug(dLog, "S%d start with command %d in term %d with num%d", rf.me, entry.CommandIndex, entry.Term, command)
-    rf.log = append(rf.log,entry)
-    // rf.logAcceptCnt = append(rf.logAcceptCnt,1)
+    rf.log = append(rf.log, entry)
     rf.logAcceptCnt[len(rf.log)-1]=1
-
 	return entry.CommandIndex, entry.Term, true
 }
 
@@ -176,17 +164,14 @@ func (rf *Raft) killed() bool {
 
 func (rf *Raft) applyMsgChk(applyCh chan ApplyMsg) {
     for !rf.killed() {
-        // Debug(dInfo, "S%d appliedIndex%d, commitIndex%d, log len%d", rf.me, rf.appliedIndex, rf.commitIndex, len(rf.log))
         if rf.commitIndex > rf.appliedIndex {
-            // Debug(dInfo, "S%d appliedIndex%d, commitIndex%d, log len%d", rf.me, rf.appliedIndex, rf.commitIndex, len(rf.log))
             for i:=rf.appliedIndex+1; i<=rf.commitIndex; i++ {
                 msg := ApplyMsg{}
                 msg.CommandValid = true
                 msg.Command = rf.log[i].Command
                 msg.CommandIndex = rf.log[i].CommandIndex
-                // Debug(dLog, "S%d apply msg%d", rf.me, msg.CommandIndex)
+                Debug(dLog, "S%d apply msg%d", rf.me, msg.CommandIndex)
                 applyCh <- msg
-                Debug(dTrace, "S%d apply msg%d with term%d as leader? %t", rf.me, msg.CommandIndex, rf.log[i].Term,rf.isLeader)
                 rf.appliedIndex++
             }
         }
@@ -202,22 +187,18 @@ func Make(peers []*labrpc.ClientEnd, me int,
 	rf.me = me
 
 	// Your initialization code here (2A, 2B, 2C).
-
 	rf.leaderId = -1
 	rf.currentTerm = 0
 	rf.votedFor = -1 // vote for none
 	rf.isLeader = false
-	// rf.lastLogTerm = -1
-	// rf.lastLogIndex = -1
 	rf.commitIndex = 0
     rf.appliedIndex = 0
 	rf.heartbeatReceived = false
     // init with a dummy entry
 	rf.log = []LogEntry{LogEntry{-1,-1,-1}}
-    // rf.logAcceptCnt = []int{0}
     rf.logAcceptCnt = make(map[int]int)
 	rf.voteNum = 0
-    // init next index
+    // init next index array with value 1
     rf.nextIndex = make([]int, len(rf.peers))
     for i:=0; i<len(rf.nextIndex); i++ {
         rf.nextIndex[i]=1;
@@ -225,7 +206,6 @@ func Make(peers []*labrpc.ClientEnd, me int,
 
 	rf.heartbeatDuration = 100
 	rf.electionTimeout = 300 + (rand.Int63() % 160)
-
 
 	// initialize from state persisted before a crash
 	rf.readPersist(persister.ReadRaftState())
