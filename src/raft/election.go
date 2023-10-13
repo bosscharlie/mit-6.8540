@@ -28,7 +28,7 @@ func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 
 	// for all servers
 	rf.mu.Lock()
-	// Debug(dVote, "S%d received requestvote from S%d in term%d",rf.me,args.CandidateId,args.Term)
+	Debug(dVote, "S%d received requestvote from S%d in term%d",rf.me,args.CandidateId,args.Term)
 	defer rf.mu.Unlock()
 	// reject the stale vote request
 	if args.Term < rf.currentTerm {
@@ -49,7 +49,7 @@ func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 			rf.heartbeatReceived = true // granting vote to candiate, reset election timeout
 			reply.Term = rf.currentTerm
 			reply.VoteGranted = true
-			// Debug(dVote, "S%d voted for S%d in term%d",rf.me,args.CandidateId,rf.currentTerm)
+			Debug(dVote, "S%d voted for S%d in term%d",rf.me,args.CandidateId,rf.currentTerm)
 		}
 	} else {
 		reply.Term = rf.currentTerm
@@ -60,6 +60,7 @@ func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 }
 
 func (rf *Raft) sendRequestVote(server int) bool {
+    Debug(dVote, "S%d send requestVote to S%d in term%d", rf.me, server, rf.currentTerm)
 	args := RequestVoteArgs{rf.currentTerm, rf.me, len(rf.log)-1, rf.log[len(rf.log)-1].Term}
 	reply := RequestVoteReply{}
 	ok := rf.peers[server].Call("Raft.RequestVote", &args, &reply)
@@ -79,14 +80,16 @@ func (rf *Raft) sendRequestVote(server int) bool {
 			}
 		} else if reply.Term > rf.currentTerm {
 			// find someone in new term, transfer to a follower
-            Debug(dLeader, "S%d return to follower", rf.me)
+            Debug(dLeader, "S%d return to follower by S%d", rf.me, server)
 			rf.currentTerm = reply.Term
 			rf.votedFor = -1
 			rf.voteNum = 0
 			rf.isLeader = false 
 		}
 		rf.mu.Unlock()
-	}
+	} else {
+        Debug(dWarn, "S%d rpc to S%d failed", rf.me, server)
+    }
 	return ok
 }
 

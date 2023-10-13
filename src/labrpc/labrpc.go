@@ -103,6 +103,7 @@ func (e *ClientEnd) Call(svcMeth string, args interface{}, reply interface{}) bo
 		// the request has been sent.
 	case <-e.done:
 		// entire Network has been destroyed.
+        log.Println("entire Network has been destroyed.")
 		return false
 	}
 
@@ -226,6 +227,7 @@ func (rn *Network) processReq(req reqMsg) {
 		}
 
 		if reliable == false && (rand.Int()%1000) < 100 {
+            log.Println("rpc false cause by drop the request")
 			// drop the request, return as if timeout
 			req.replyCh <- replyMsg{false, nil}
 			return
@@ -271,9 +273,11 @@ func (rn *Network) processReq(req reqMsg) {
 
 		if replyOK == false || serverDead == true {
 			// server was killed while we were waiting; return error.
+            log.Println("rpc false cause server was killed")
 			req.replyCh <- replyMsg{false, nil}
 		} else if reliable == false && (rand.Int()%1000) < 100 {
 			// drop the reply, return as if timeout
+            log.Println("rpc false cause by drop the reply")
 			req.replyCh <- replyMsg{false, nil}
 		} else if longreordering == true && rand.Intn(900) < 600 {
 			// delay the response for a while
@@ -291,6 +295,7 @@ func (rn *Network) processReq(req reqMsg) {
 		}
 	} else {
 		// simulate no reply and eventual timeout.
+        log.Println("rpc false cause by simulate no reply")
 		ms := 0
 		if rn.longDelays {
 			// let Raft tests check that leader doesn't send

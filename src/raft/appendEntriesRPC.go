@@ -21,9 +21,10 @@ type AppendEntriesReply struct {
 func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply * AppendEntriesReply) {
 	// Debug(dTimer,"S%d received heartbeat from S%d with term%d in term%d",rf.me,args.LeaderId,args.Term,rf.currentTerm)
 	// stale leader rejoin, with a high term because of retry elect new leader, but have a stale commitIndex
-    Debug(dInfo, "S%d receive rpc from S%d with %dlogs ans prevIndex %d", rf.me, args.LeaderId, len(args.Entries), args.PrevLogIndex)
+    // Debug(dInfo, "S%d receive rpc from S%d with %dlogs ans prevIndex %d", rf.me, args.LeaderId, len(args.Entries), args.PrevLogIndex)
+    Debug(dInfo, "S%d receive rpc from S%d of term%d in term%d", rf.me, args.LeaderId, args.Term, rf.currentTerm)
     Debug(dInfo, "S%d receive LeaderCommit%d, self commit%d", rf.me, args.LeaderCommit, rf.commitIndex)
-    if args.LeaderCommit >= rf.commitIndex {
+    if rf.isLeader && (args.LeaderCommit > rf.commitIndex || (args.LeaderCommit == rf.commitIndex && args.Term>rf.currentTerm)){
         rf.mu.Lock()
         // Debug(dLeader, "S%d receive heartbeat from leader%d and convert to follower", rf.me, args.LeaderId)
         rf.currentTerm = args.Term
@@ -31,9 +32,7 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply * AppendEntriesRepl
         rf.leaderId = args.LeaderId
         rf.votedFor = args.LeaderId
         rf.isLeader = false
-        // if rf.isLeader {
-            Debug(dWarn, "S%d give up to be leader", rf.me)
-        // }
+        Debug(dWarn, "S%d give up to be leader", rf.me)
         rf.mu.Unlock()
     }
 
@@ -45,7 +44,7 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply * AppendEntriesRepl
     }
 
 	if args.Term < rf.currentTerm {
-        Debug(dWarn, "S%d term %d < args.Term %d", rf.me, rf.currentTerm, rf.currentTerm)
+        Debug(dWarn, "S%d term %d > S%d args.Term %d", rf.me, rf.currentTerm, args.LeaderId, args.Term)
 		reply.Term = rf.currentTerm
 		reply.Success = false
 		return
@@ -89,6 +88,7 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply * AppendEntriesRepl
 
     rf.mu.Lock()
     rf.currentTerm = args.Term
+    Debug(dTerm, "S%d term changed to %d", rf.me, args.Term)
 	rf.heartbeatReceived = true
 	rf.leaderId = args.LeaderId
 	rf.votedFor = args.LeaderId
@@ -120,7 +120,8 @@ func (rf *Raft) sendAppendEntries(server int) bool {
     }
 	args.LeaderCommit = rf.commitIndex
 	reply := AppendEntriesReply{}
-    Debug(dInfo, "S%d send rpc to S%d with prevIndex%d and %dlogs", rf.me, server, prevIndex, len(args.Entries))
+    // Debug(dInfo, "S%d send rpc to S%d with prevIndex%d and %dlogs", rf.me, server, prevIndex, len(args.Entries))
+    Debug(dInfo, "S%d send rpc to S%d in term%d", rf.me, server, rf.currentTerm)
 	ok := rf.peers[server].Call("Raft.AppendEntries", &args, &reply)
 	if ok && rf.isLeader {
         // meet a new server, transfer to follower
@@ -130,7 +131,7 @@ func (rf *Raft) sendAppendEntries(server int) bool {
             rf.leaderId = args.LeaderId
             rf.votedFor = -1
             rf.isLeader = false
-            Debug(dWarn, "S%d give up to be leader by find a newer server, term in %d", rf.me, reply.Term)
+            // Debug(dWarn, "S%d give up to be leader by find a newer server, term in %d", rf.me, reply.Term)
             rf.mu.Unlock()
             return ok
 		}
