@@ -27,8 +27,9 @@ func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 	// Your code here (2A, 2B).
 
 	// for all servers
+    Debug(dVote, "S%d received requestvote from S%d in term%d unlocked",rf.me,args.CandidateId,args.Term)
 	rf.mu.Lock()
-	Debug(dVote, "S%d received requestvote from S%d in term%d",rf.me,args.CandidateId,args.Term)
+    Debug(dVote, "S%d received requestvote from S%d in term%d locked",rf.me,args.CandidateId,args.Term)
 	defer rf.mu.Unlock()
 	// reject the stale vote request
 	if args.Term < rf.currentTerm {

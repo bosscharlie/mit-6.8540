@@ -203,7 +203,7 @@ def run_tests(
                         for test in itertools.islice(test_instances, workers-n):
                             futures.append(executor.submit(run_test, test, race, timing))
 
-                    done, not_done = wait(futures, timeout=40, return_when=FIRST_COMPLETED)
+                    done, not_done = wait(futures, return_when=FIRST_COMPLETED)
 
                     for future in done:
                         test, path, rc, runtime = future.result()

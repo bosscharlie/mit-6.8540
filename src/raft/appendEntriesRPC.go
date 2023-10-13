@@ -102,6 +102,7 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply * AppendEntriesRepl
 func (rf *Raft) sendAppendEntries(server int) bool {
     rf.mu.Lock()
     if !rf.isLeader {
+        rf.mu.Unlock()
         return false
     }
     rf.mu.Unlock()
@@ -121,7 +122,7 @@ func (rf *Raft) sendAppendEntries(server int) bool {
 	args.LeaderCommit = rf.commitIndex
 	reply := AppendEntriesReply{}
     // Debug(dInfo, "S%d send rpc to S%d with prevIndex%d and %dlogs", rf.me, server, prevIndex, len(args.Entries))
-    Debug(dInfo, "S%d send rpc to S%d in term%d", rf.me, server, rf.currentTerm)
+    // Debug(dInfo, "S%d %v send rpc to S%d with endname:%v in term%d", rf.me, rf.peers[rf.me].Endname, server, rf.peers[server].Endname, rf.currentTerm)
 	ok := rf.peers[server].Call("Raft.AppendEntries", &args, &reply)
 	if ok && rf.isLeader {
         // meet a new server, transfer to follower
