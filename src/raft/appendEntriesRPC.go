@@ -16,6 +16,7 @@ type AppendEntriesArgs struct {
 type AppendEntriesReply struct {
 	Term 	int 	// currentTerm, for leader to update itself. If a leader carshed and recover, send heartbeat to others, notice that it is stale
 	Success bool 	// true if follower contained every prevlogindex and prevlogterm, used to increase the nextIndex
+    Dindex  bool    // if leader should decrease index
 }
 
 func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply * AppendEntriesReply) {
@@ -58,6 +59,7 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply * AppendEntriesRepl
         reply.Success = false
         Debug(dWarn, "S%d has %d logs", rf.me, len(rf.log))
         Debug(dWarn, "S%d receive unmatched log with prevIndex%d and term%d", rf.me, args.PrevLogIndex, args.PrevLogTerm)
+        reply.Dindex = true
         rf.currentTerm = args.Term
         rf.heartbeatReceived = true
         rf.leaderId = args.LeaderId
@@ -155,8 +157,10 @@ func (rf *Raft) sendAppendEntries(server int) bool {
             } else{
                 // if !success, decrease lastIndex
                 rf.mu.Lock()
-                // Debug(dLog, "S%d decrese nextIndex to %d for S%d", rf.me, rf.nextIndex[server], server)
-                rf.nextIndex[server]--
+                if reply.Dindex {
+                    Debug(dLog, "S%d decrese nextIndex to %d for S%d", rf.me, rf.nextIndex[server], server)
+                    rf.nextIndex[server]--
+                }
                 rf.mu.Unlock()
             }
         }
